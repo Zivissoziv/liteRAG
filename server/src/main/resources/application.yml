@@ -1,0 +1,65 @@
+server:
+  port: 8080
+  compression:
+    enabled: true
+
+spring:
+  application:
+    name: literag
+  datasource:
+    url: jdbc:h2:file:./data/db/literag;AUTO_SERVER=TRUE;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ''
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 50
+        format_sql: false
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 500MB
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+literag:
+  storage-dir: ./data/uploads
+  vector:
+    # auto = 优先 Qdrant，其次 ChromaDB，均不可用时回退到内置本地向量库
+    provider: qdrant
+    chroma:
+      url: http://localhost:8000
+      api-version: auto   # auto | v1 | v2
+      tenant: default_tenant
+      database: default_database
+      timeout: 20
+    qdrant:
+      url: http://localhost:6333
+      api-key: ''
+      timeout: 20
+  chunk:
+    size: 800
+    overlap: 120
+  mcp:
+    server-name: literag-knowledge
+    server-version: 1.0.0
+    api-key: ''
+  cors:
+    allowed-origins: '*'
+
+logging:
+  charset:
+    console: UTF-8
+    file: UTF-8
+  level:
+    root: INFO
+    com.literag: INFO
+    org.apache.pdfbox: ERROR
+    org.apache.poi: ERROR
