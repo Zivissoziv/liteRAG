@@ -13,23 +13,6 @@
       <el-form-item label="描述">
         <el-input v-model="form.description" type="textarea" :rows="3" maxlength="300" placeholder="可选" />
       </el-form-item>
-      <el-form-item label="向量模型">
-        <el-select v-model="form.embeddingModelId" placeholder="选择 Embedding 模型" style="width: 100%">
-          <el-option v-for="m in models" :key="m.id" :value="m.id" :label="m.name">
-            <div class="opt-row">
-              <span>{{ m.name }}</span>
-              <span class="opt-dim">{{ m.dimension ? m.dimension + ' 维' : '自动' }}</span>
-            </div>
-          </el-option>
-        </el-select>
-        <p class="hint">更换模型后需重新索引已有文档</p>
-      </el-form-item>
-      <el-form-item label="分块长度">
-        <el-slider v-model="form.chunkSize" :min="200" :max="2000" :step="50" show-input />
-      </el-form-item>
-      <el-form-item label="重叠长度">
-        <el-slider v-model="form.chunkOverlap" :min="0" :max="400" :step="10" show-input />
-      </el-form-item>
       <el-form-item label="MCP 开放">
         <el-switch v-model="form.mcpExposed" />
       </el-form-item>
@@ -77,6 +60,18 @@
         <p class="hint access-hint">管理员始终可见；文档、目录与检索结果都会继承该知识库的可见范围。</p>
       </template>
     </el-form>
+
+    <div class="config-note">
+      <template v-if="isEdit && kb">
+        当前配置：{{ kb.embeddingModelName || '默认 Embedding 模型' }} · 分块
+        {{ kb.chunkSize || '-' }} / 重叠 {{ kb.chunkOverlap ?? '-' }}
+      </template>
+      <template v-else>
+        向量模型取「模型配置」中的默认 Embedding 模型，分块长度与重叠取「设置 · 检索与分块」的默认值
+      </template>
+      <br />
+      分块规则在<b>上传文档</b>时逐份选择，建库阶段无需配置。
+    </div>
     <template #footer>
       <el-button @click="visible = false">取消</el-button>
       <el-button type="primary" :loading="saving" @click="submit">{{ isEdit ? '保存' : '创建' }}</el-button>
@@ -87,7 +82,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { kbApi, modelApi } from '../api'
+import { kbApi } from '../api'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -101,31 +96,16 @@ const visible = computed({
 })
 const isEdit = computed(() => !!props.kb?.id)
 const saving = ref(false)
-const models = ref([])
 const options = ref({ roles: [], users: [] })
 
 const form = reactive({
   name: '',
   description: '',
-  embeddingModelId: null,
-  chunkSize: 800,
-  chunkOverlap: 120,
   mcpExposed: true,
   visibility: 'PUBLIC',
   accessRoles: [],
   accessUserIds: []
 })
-
-const loadModels = async () => {
-  try {
-    models.value = await modelApi.list('EMBEDDING')
-    if (!form.embeddingModelId && models.value.length) {
-      form.embeddingModelId = (models.value.find((m) => m.isDefault) || models.value[0]).id
-    }
-  } catch (e) {
-    models.value = []
-  }
-}
 
 const loadOptions = async () => {
   try {
@@ -139,15 +119,11 @@ watch(
   () => props.modelValue,
   (open) => {
     if (!open) return
-    loadModels()
     loadOptions()
     if (props.kb) {
       Object.assign(form, {
         name: props.kb.name,
         description: props.kb.description || '',
-        embeddingModelId: props.kb.embeddingModelId,
-        chunkSize: props.kb.chunkSize || 800,
-        chunkOverlap: props.kb.chunkOverlap || 120,
         mcpExposed: props.kb.mcpExposed !== false,
         visibility: props.kb.visibility || 'PUBLIC',
         accessRoles: [...(props.kb.accessRoles || [])],
@@ -157,9 +133,6 @@ watch(
       Object.assign(form, {
         name: '',
         description: '',
-        embeddingModelId: null,
-        chunkSize: 800,
-        chunkOverlap: 120,
         mcpExposed: true,
         visibility: 'PUBLIC',
         accessRoles: [],
@@ -222,5 +195,18 @@ const onClosed = () => {
 }
 .access-hint {
   margin-left: 88px;
+}
+.config-note {
+  margin: 4px 0 0 88px;
+  padding: 8px 10px;
+  border-radius: var(--r-control);
+  background: var(--fill-1, rgba(127, 127, 127, 0.06));
+  color: var(--text-faint);
+  font-size: var(--fs-caption);
+  line-height: 1.6;
+}
+.config-note b {
+  color: var(--text-muted);
+  font-weight: var(--fw-strong);
 }
 </style>
