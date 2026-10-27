@@ -242,12 +242,14 @@ pre,
   padding: 0 8px 12px;
 }
 
-/* 文字标签：收起时淡出左移，展开后延迟浮现，跟在面板动作之后（follow-through） */
-.brand-title,
-.nav-group-title,
-.nav-item span,
-.u-main,
-.u-more {
+/* 文字标签：收起时淡出左移，展开后延迟浮现，跟在面板动作之后（follow-through）
+   选择器必须限定在 .sidebar 内：.u-main 在「用户管理」列表里也有同名类，
+   全局命中会让用户名一直处于 opacity: 0 的不可见状态 */
+.sidebar .brand-title,
+.sidebar .nav-group-title,
+.sidebar .nav-item span,
+.sidebar .u-main,
+.sidebar .u-more {
   opacity: 0;
   transform: translateX(-4px);
   transition: opacity 120ms ease, transform 120ms ease;
