@@ -4,6 +4,7 @@ server/.mvn/wrapper/*.jar
 
 # ---------- 构建产物 ----------
 web/dist/
+web/.vite/
 server/target/
 *.class
 
