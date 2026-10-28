@@ -1,7 +1,10 @@
 <template>
-  <div class="page">
+  <div class="page search-page">
     <div class="page-header">
       <h1 class="page-title">检索问答</h1>
+      <div class="header-actions">
+        <span class="kbd-hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> 执行</span>
+      </div>
     </div>
 
     <div class="layout">
@@ -14,14 +17,14 @@
         <el-input
           v-model="query"
           type="textarea"
-          :rows="4"
+          :rows="3"
           resize="none"
           :placeholder="mode === 'ask' ? '输入问题' : '输入检索内容或一段原文'"
           @keydown.ctrl.enter="run"
         />
 
         <div class="field">
-          <label>知识库范围</label>
+          <div class="field-head"><label>知识库范围</label></div>
           <el-select
             v-model="selectedKbs"
             multiple
@@ -39,20 +42,22 @@
           </el-select>
         </div>
 
-        <div class="field">
-          <div class="field-head">
-            <label>返回片段数</label>
-            <b>{{ topK }}</b>
+        <div class="sliders">
+          <div class="field">
+            <div class="field-head">
+              <label>返回片段数</label>
+              <b>{{ topK }}</b>
+            </div>
+            <el-slider v-model="topK" :min="1" :max="20" :show-tooltip="false" />
           </div>
-          <el-slider v-model="topK" :min="1" :max="20" :step="1" />
-        </div>
 
-        <div class="field">
-          <div class="field-head">
-            <label>相似度阈值</label>
-            <b>{{ minScore.toFixed(2) }}</b>
+          <div class="field">
+            <div class="field-head">
+              <label>相似度阈值</label>
+              <b>{{ minScore.toFixed(2) }}</b>
+            </div>
+            <el-slider v-model="minScore" :min="0" :max="0.9" :step="0.05" :show-tooltip="false" />
           </div>
-          <el-slider v-model="minScore" :min="0" :max="0.9" :step="0.05" />
         </div>
 
         <el-button class="run" type="primary" :loading="loading" @click="run">
@@ -60,18 +65,18 @@
         </el-button>
 
         <div class="examples">
-          <div class="examples-title">示例问题</div>
+          <span class="examples-title">试试</span>
           <button v-for="ex in examples" :key="ex" type="button" class="example" @click="useExample(ex)">
             {{ ex }}
           </button>
         </div>
       </div>
 
-      <div class="result">
+      <div ref="resultEl" class="result">
         <div v-if="!result && !answer" class="card placeholder">
           <div class="ph-icon"><el-icon><Aim /></el-icon></div>
           <div class="ph-title">{{ mode === 'ask' ? '尚未提问' : '尚未执行检索' }}</div>
-          <div class="ph-hint">Ctrl + Enter 执行</div>
+          <div class="ph-hint">在左侧输入内容后按 Ctrl + Enter</div>
         </div>
 
         <template v-if="mode === 'search' && result">
@@ -81,21 +86,14 @@
             <span>{{ result.tookMs }} ms</span>
           </div>
           <div v-if="!result.hits.length" class="card empty">未召回到片段，可降低阈值或换个问法</div>
-          <div v-for="(hit, i) in result.hits" :key="hit.vectorId" class="hit-card">
-            <div class="hit-head">
-              <span class="rank">{{ i + 1 }}</span>
-              <span class="doc">{{ hit.docName }}</span>
-              <el-tag size="small">{{ hit.kbName }}</el-tag>
-              <el-tag size="small">#{{ hit.seq }}</el-tag>
-              <div class="spacer"></div>
-              <span class="score">{{ hit.score.toFixed(4) }}</span>
-              <el-button size="small" text @click="openDoc(hit.docId)">查看文档</el-button>
-            </div>
-            <div class="score-bar">
-              <div class="score-fill" :style="{ width: Math.max(2, hit.score * 100) + '%' }"></div>
-            </div>
-            <div class="hit-content">{{ hit.content }}</div>
-          </div>
+          <HitCard
+            v-for="(hit, i) in result.hits"
+            :key="hit.vectorId"
+            :hit="hit"
+            :index="i"
+            show-bar
+            @open="openDoc"
+          />
         </template>
 
         <template v-if="mode === 'ask' && answer">
@@ -115,18 +113,13 @@
             <span>引用 <b>{{ answer.citations?.length || 0 }}</b> 条</span>
             <span>{{ backendLabel(answer.backend) }}</span>
           </div>
-          <div v-for="(hit, i) in answer.citations || []" :key="hit.vectorId" class="hit-card">
-            <div class="hit-head">
-              <span class="rank">{{ i + 1 }}</span>
-              <span class="doc">{{ hit.docName }}</span>
-              <el-tag size="small">{{ hit.kbName }}</el-tag>
-              <el-tag size="small">#{{ hit.seq }}</el-tag>
-              <div class="spacer"></div>
-              <span class="score">{{ hit.score.toFixed(4) }}</span>
-              <el-button size="small" text @click="openDoc(hit.docId)">查看文档</el-button>
-            </div>
-            <div class="hit-content">{{ hit.content }}</div>
-          </div>
+          <HitCard
+            v-for="(hit, i) in answer.citations || []"
+            :key="hit.vectorId"
+            :hit="hit"
+            :index="i"
+            @open="openDoc"
+          />
         </template>
       </div>
     </div>
@@ -136,11 +129,12 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import MarkdownIt from 'markdown-it'
 import { ElMessage } from 'element-plus'
 import { kbApi, searchApi } from '../api'
 import DocDrawer from '../components/DocDrawer.vue'
+import HitCard from '../components/HitCard.vue'
 
 const md = new MarkdownIt({ html: false, linkify: true, breaks: true })
 const render = (text) => md.render(text || '')
@@ -156,6 +150,7 @@ const result = ref(null)
 const answer = ref(null)
 const docOpen = ref(false)
 const currentDocId = ref(null)
+const resultEl = ref(null)
 
 const examples = computed(() => {
   if (!kbs.value.length) return ['系统支持哪些文件格式？']
@@ -192,6 +187,9 @@ const run = async () => {
         topK: topK.value
       })
     }
+    // 新结果总是从顶部开始看，避免沿用上一次的滚动位置
+    await nextTick()
+    if (resultEl.value) resultEl.value.scrollTop = 0
   } finally {
     loading.value = false
   }
@@ -213,25 +211,62 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.layout {
-  display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 12px;
-  align-items: stretch;
-  min-height: calc(100vh - 150px);
-}
-.control {
-  position: sticky;
-  top: 76px;
-  align-self: start;
-}
-.result {
+/* 整页锁定在一屏内：页头 + 布局刚好占满可视高度，
+   滚动只发生在右侧结果区和左侧控制面板内部 */
+.search-page {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+}
+.page-header {
+  margin-bottom: 14px;
+  flex-shrink: 0;
+}
+.kbd-hint {
+  font-size: var(--fs-caption);
+  color: var(--text-faint);
+}
+.kbd-hint kbd {
+  padding: 1px 4px;
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  font-family: inherit;
+  font-size: 11px;
+}
+
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 288px minmax(0, 1fr);
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* ---------------- 左侧控制区 ---------------- */
+/* 控制卡片贴合内容高度，避免右栏很高、左栏大片留白 */
+.control {
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px;
+}
+.control::-webkit-scrollbar {
+  width: 8px;
+}
+.control::-webkit-scrollbar-thumb {
+  background: var(--gray-5);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 .mode {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
   width: 100%;
 }
 .mode :deep(.el-radio-button) {
@@ -241,7 +276,7 @@ onMounted(async () => {
   width: 100%;
 }
 .field {
-  margin-top: 14px;
+  margin-top: 12px;
 }
 .field label {
   font-size: var(--fs-caption);
@@ -259,6 +294,17 @@ onMounted(async () => {
   color: var(--accent-text);
   font-variant-numeric: tabular-nums;
 }
+.sliders .field {
+  margin-top: 10px;
+}
+.control :deep(.el-slider) {
+  --el-slider-height: 4px;
+  --el-slider-button-size: 12px;
+  --el-slider-runway-bg-color: var(--gray-4);
+}
+.control :deep(.el-slider__runway) {
+  margin: 8px 0 0;
+}
 .opt-row {
   display: flex;
   justify-content: space-between;
@@ -270,36 +316,69 @@ onMounted(async () => {
 }
 .run {
   width: 100%;
-  margin-top: 16px;
+  margin-top: 14px;
 }
+/* 示例改成胶囊标签，横向排列，不再占三行 */
 .examples {
-  margin-top: 16px;
-  padding-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
   border-top: 0.5px solid var(--border-subtle);
 }
 .examples-title {
   font-size: var(--fs-caption);
   color: var(--text-faint);
-  margin-bottom: 4px;
 }
 .example {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 6px 8px;
-  margin: 0 -8px;
-  border: 0;
+  padding: 3px 9px;
+  border: 0.5px solid var(--border);
   background: none;
-  border-radius: var(--r-control);
+  border-radius: 999px;
   font-size: var(--fs-caption);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
 }
 .example:hover {
   background: var(--bg-subtle);
+  border-color: var(--gray-6);
   color: var(--text);
 }
+
+/* ---------------- 右侧结果区 ---------------- */
+.result {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+  padding-bottom: 10px;
+  /* 滚动条默认隐形，悬停时才显形，视觉上更干净 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.result:hover {
+  scrollbar-color: var(--gray-5) transparent;
+}
+.result::-webkit-scrollbar {
+  width: 10px;
+}
+.result::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.result:hover::-webkit-scrollbar-thumb {
+  background: var(--gray-5);
+  background-clip: content-box;
+}
+
 .placeholder {
   flex: 1;
   text-align: center;
@@ -308,7 +387,7 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: 360px;
+  min-height: 240px;
 }
 .ph-icon {
   display: flex;
@@ -331,13 +410,20 @@ onMounted(async () => {
   color: var(--text-faint);
   margin-top: 2px;
 }
+
+/* 统计行吸顶：滚动长结果时命中数/耗时始终可见 */
 .result-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 14px;
   font-size: var(--fs-caption);
   color: var(--text-faint);
-  margin-bottom: 10px;
+  padding: 2px 0 8px;
+  margin-bottom: 4px;
+  background: var(--bg-app);
   font-variant-numeric: tabular-nums;
 }
 .result-head b {
@@ -345,44 +431,18 @@ onMounted(async () => {
   font-weight: var(--fw-strong);
 }
 .citations-head {
-  margin-top: 16px;
+  margin-top: 12px;
 }
-.rank {
-  width: 18px;
-  height: 18px;
-  border-radius: var(--r-inner);
-  background: var(--accent-bg);
-  color: var(--accent-text);
-  font-size: var(--fs-caption);
-  font-weight: var(--fw-strong);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.doc {
-  font-size: var(--fs-body);
-  font-weight: var(--fw-strong);
-  max-width: 280px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.score {
-  font-family: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
-  font-size: var(--fs-caption);
-  color: var(--accent-text);
-  font-variant-numeric: tabular-nums;
-}
+
 .answer-card {
-  padding: 16px;
+  padding: 14px 16px;
 }
 .answer-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 .answer-meta {
   display: flex;
@@ -394,11 +454,22 @@ onMounted(async () => {
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
+
 @media (max-width: 1080px) {
+  /* 窄屏改为普通文档流，恢复整页滚动 */
+  .search-page {
+    height: auto;
+  }
   .layout {
     grid-template-columns: 1fr;
   }
   .control {
+    overflow: visible;
+  }
+  .result {
+    overflow: visible;
+  }
+  .result-head {
     position: static;
   }
 }
