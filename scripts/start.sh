@@ -1,24 +1,19 @@
 #!/usr/bin/env bash
-# LiteRAG 一键启动：ChromaDB -> 前端构建 -> 后端打包 -> 启动服务
+# LiteRAG 一键启动：探测向量库 -> 前端构建 -> 后端打包 -> 启动服务
+# 元数据库为内置 SQLite 单文件（server/data/db/literag.db），无需启动
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 PORT="${PORT:-8080}"
 
-echo "[1/4] 启动 ChromaDB ..."
-if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  if ! curl -s -m 3 http://localhost:8000/api/v2/heartbeat >/dev/null 2>&1; then
-    docker rm -f literag-chroma >/dev/null 2>&1 || true
-    docker run -d --name literag-chroma -p 8000:8000 \
-      -v "$ROOT/data/chroma:/data" \
-      -e IS_PERSISTENT=TRUE -e ANONYMIZED_TELEMETRY=FALSE \
-      chromadb/chroma:1.0.15 >/dev/null
-    echo "      ChromaDB 已启动（localhost:8000）"
-  else
-    echo "      ChromaDB 已在运行"
-  fi
+echo "[1/4] 探测向量库 ..."
+if curl -s -m 2 http://localhost:6333/collections >/dev/null 2>&1; then
+  echo "      Qdrant 已就绪（localhost:6333）"
+elif curl -s -m 2 http://localhost:8000/api/v2/heartbeat >/dev/null 2>&1; then
+  echo "      ChromaDB 已就绪（localhost:8000）"
 else
-  echo "      未检测到 Docker，将使用内置本地向量库"
+  echo "      未检测到 Qdrant / ChromaDB，将回退到内置本地向量库"
+  echo "      需要 Qdrant 可执行：tools/qdrant/qdrant.exe（Windows）或 docker run -p 6333:6333 qdrant/qdrant"
 fi
 
 echo "[2/4] 构建前端 ..."

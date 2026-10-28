@@ -5,25 +5,20 @@ set ROOT=%~dp0..
 cd /d "%ROOT%"
 if "%PORT%"=="" set PORT=8080
 
-echo [1/4] Starting ChromaDB ...
-where docker >nul 2>&1
-if errorlevel 1 (
-  echo       Docker not found, fallback to built-in local vector store
-  goto build
-)
-docker info >nul 2>&1
-if errorlevel 1 (
-  echo       Docker daemon not running, fallback to built-in local vector store
-  goto build
-)
-curl -s -m 3 http://localhost:8000/api/v2/heartbeat >nul 2>&1
+echo [1/4] Checking vector store ...
+rem Metadata DB is built-in SQLite (server\data\db\literag.db), nothing to start.
+curl -s -m 2 http://localhost:6333/collections >nul 2>&1
 if not errorlevel 1 (
-  echo       ChromaDB already running
+  echo       Qdrant is up on localhost:6333
   goto build
 )
-docker rm -f literag-chroma >nul 2>&1
-docker run -d --name literag-chroma -p 8000:8000 -v "%ROOT%/data/chroma:/data" -e IS_PERSISTENT=TRUE -e ANONYMIZED_TELEMETRY=FALSE chromadb/chroma:1.0.15 >nul
-echo       ChromaDB started on localhost:8000
+curl -s -m 2 http://localhost:8000/api/v2/heartbeat >nul 2>&1
+if not errorlevel 1 (
+  echo       ChromaDB is up on localhost:8000
+  goto build
+)
+echo       No Qdrant / ChromaDB detected, fallback to built-in local vector store
+echo       For Qdrant: run tools\qdrant\qdrant.exe or docker run -p 6333:6333 qdrant/qdrant
 
 :build
 echo [2/4] Building frontend ...
