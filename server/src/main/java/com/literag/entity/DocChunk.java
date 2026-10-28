@@ -39,7 +39,7 @@ public class DocChunk {
 
     private Integer charCount;
 
-    /** 本地向量模式下保存原始向量（Chroma 模式下同样落库，便于切换后端后免重新解析） */
+    /** 本地向量模式下保存原始向量（Qdrant 模式下同样落库，便于切换后端后免重新解析） */
     @JdbcTypeCode(SqlTypes.LONGVARBINARY)
     private byte[] embedding;
 

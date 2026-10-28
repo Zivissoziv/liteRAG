@@ -13,7 +13,7 @@ import java.util.List;
 
 /**
  * 本地向量库：向量以 BLOB 形式随分块一起落库，检索时做精确余弦扫描。
- * 用于 ChromaDB 未部署时的零依赖运行，也方便离线演示。
+ * 用于 Qdrant 未部署时的零依赖运行，也方便离线演示。
  */
 @Slf4j
 @Component

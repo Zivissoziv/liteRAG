@@ -98,7 +98,7 @@ public class DataInitializer implements ApplicationRunner {
         String content = """
                 # LiteRAG 是什么
 
-                LiteRAG 是一套基于检索增强生成（RAG）的 Wiki 文档管理系统。它由 Vue 3 前端、Spring Boot 后端与 ChromaDB 向量数据库组成，
+                LiteRAG 是一套基于检索增强生成（RAG）的 Wiki 文档管理系统。它由 Vue 3 前端、Spring Boot 后端与 Qdrant 向量数据库组成，
                 支持把 docx、pdf、xlsx、pptx、markdown 等文档转换成可检索的知识片段。
 
                 ## 核心能力

@@ -23,19 +23,9 @@ public class AppProperties {
 
     @Data
     public static class Vector {
-        /** auto | qdrant | chroma | local */
+        /** auto | qdrant | local */
         private String provider = "qdrant";
-        private Chroma chroma = new Chroma();
         private Qdrant qdrant = new Qdrant();
-    }
-
-    @Data
-    public static class Chroma {
-        private String url = "http://localhost:8000";
-        private String apiVersion = "auto";
-        private String tenant = "default_tenant";
-        private String database = "default_database";
-        private int timeout = 20;
     }
 
     @Data

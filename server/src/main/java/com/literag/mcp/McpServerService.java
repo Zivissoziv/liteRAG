@@ -363,7 +363,7 @@ public class McpServerService {
             return "-";
         }
         return switch (backend) {
-            case "chroma" -> "ChromaDB";
+            case "qdrant" -> "Qdrant";
             case "local" -> "本地向量库";
             default -> backend;
         };

@@ -18,10 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class SettingsService {
 
-    public static final String CHROMA_URL = "chromaUrl";
-    public static final String CHROMA_API_VERSION = "chromaApiVersion";
-    public static final String CHROMA_TENANT = "chromaTenant";
-    public static final String CHROMA_DATABASE = "chromaDatabase";
     public static final String QDRANT_URL = "qdrantUrl";
     public static final String QDRANT_API_KEY = "qdrantApiKey";
     public static final String QDRANT_TIMEOUT = "qdrantTimeout";
@@ -36,16 +32,16 @@ public class SettingsService {
 
     private static final String MASK = "******";
 
+    /** 已下线引擎（ChromaDB）的遗留键，读设置时直接忽略 */
+    private static final java.util.Set<String> LEGACY_KEYS = java.util.Set.of(
+            "chromaUrl", "chromaApiVersion", "chromaTenant", "chromaDatabase");
+
     private final AppSettingRepository repository;
     private final AppProperties props;
     private final Map<String, String> cache = new ConcurrentHashMap<>();
 
     private Map<String, String> defaults() {
         Map<String, String> m = new LinkedHashMap<>();
-        m.put(CHROMA_URL, props.getVector().getChroma().getUrl());
-        m.put(CHROMA_API_VERSION, props.getVector().getChroma().getApiVersion());
-        m.put(CHROMA_TENANT, props.getVector().getChroma().getTenant());
-        m.put(CHROMA_DATABASE, props.getVector().getChroma().getDatabase());
         m.put(VECTOR_PROVIDER, props.getVector().getProvider());
         m.put(QDRANT_URL, props.getVector().getQdrant().getUrl());
         m.put(QDRANT_API_KEY, props.getVector().getQdrant().getApiKey());
@@ -61,10 +57,18 @@ public class SettingsService {
     }
 
     public String get(String key) {
-        return cache.computeIfAbsent(key, k -> repository.findById(k)
+        return cache.computeIfAbsent(key, k -> normalize(k, repository.findById(k)
                 .map(AppSetting::getSettingValue)
                 .filter(v -> v != null && !v.isBlank())
-                .orElseGet(() -> defaults().getOrDefault(k, "")));
+                .orElseGet(() -> defaults().getOrDefault(k, ""))));
+    }
+
+    /** 老版本把 provider 存成 chroma，引擎下线后按 qdrant 处理 */
+    private static String normalize(String key, String value) {
+        if (VECTOR_PROVIDER.equals(key) && "chroma".equalsIgnoreCase(value == null ? "" : value.trim())) {
+            return "qdrant";
+        }
+        return value;
     }
 
     public int getInt(String key, int def) {
@@ -86,7 +90,10 @@ public class SettingsService {
     /** 返回全部设置（密钥脱敏） */
     public Map<String, String> all() {
         Map<String, String> all = new LinkedHashMap<>(defaults());
-        repository.findAll().forEach(s -> all.put(s.getSettingKey(), s.getSettingValue()));
+        repository.findAll().stream()
+                .filter(s -> !LEGACY_KEYS.contains(s.getSettingKey()))
+                .forEach(s -> all.put(s.getSettingKey(), s.getSettingValue()));
+        all.replaceAll(SettingsService::normalize);
         all.forEach((k, v) -> {
             if (isSecret(k) && v != null && !v.isBlank()) {
                 all.put(k, MASK);

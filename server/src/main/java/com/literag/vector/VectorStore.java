@@ -3,11 +3,11 @@ package com.literag.vector;
 import java.util.List;
 
 /**
- * 向量存储抽象。默认由 ChromaDB 实现，Chroma 不可用时自动回退到本地实现。
+ * 向量存储抽象。默认由 Qdrant 实现，Qdrant 不可用时回退到本地实现。
  */
 public interface VectorStore {
 
-    /** chroma | local */
+    /** qdrant | local */
     String backend();
 
     boolean available();

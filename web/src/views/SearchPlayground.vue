@@ -162,7 +162,7 @@ const examples = computed(() => {
   return ['支持哪些文件格式？', 'MCP 服务如何接入？', '分块长度怎么设置？']
 })
 
-const backendLabel = (b) => ({ qdrant: 'Qdrant', chroma: 'ChromaDB', local: '本地向量库' }[b] || b || '-')
+const backendLabel = (b) => ({ qdrant: 'Qdrant', local: '本地向量库' }[b] || b || '-')
 
 const useExample = (text) => {
   query.value = text

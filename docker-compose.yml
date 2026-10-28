@@ -1,12 +1,12 @@
+# 可选方案：用 Docker 跑 Qdrant（本地二进制见 tools/qdrant/）
+# 数据落 ./data/qdrant，与 tools/qdrant/storage 互不影响
 services:
-  chroma:
-    image: chromadb/chroma:1.0.15
-    container_name: literag-chroma
+  qdrant:
+    image: qdrant/qdrant:v1.20.0
+    container_name: literag-qdrant
     ports:
-      - "8000:8000"
+      - "6333:6333"
+      - "6334:6334"
     volumes:
-      - ./data/chroma:/data
-    environment:
-      - IS_PERSISTENT=TRUE
-      - ANONYMIZED_TELEMETRY=FALSE
+      - ./data/qdrant:/qdrant/storage
     restart: unless-stopped

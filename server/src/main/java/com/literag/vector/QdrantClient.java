@@ -84,7 +84,18 @@ public class QdrantClient {
     public Map<String, Object> health() {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("url", trimTrailingSlash(settings.get(SettingsService.QDRANT_URL)));
-        m.put("available", available());
+        String version = null;
+        boolean ok = false;
+        try {
+            // 根路径返回 {"title":"qdrant ...","version":"1.x.y","commit":"..."}
+            JsonNode root = parse(client().get().uri("/").retrieve().body(String.class));
+            version = root.path("version").asText("");
+        } catch (Exception ignored) {
+            // 根路径不可用时退回 /healthz 判断存活
+        }
+        ok = (version != null && !version.isBlank()) || available();
+        m.put("available", ok);
+        m.put("version", version == null || version.isBlank() ? null : version);
         return m;
     }
 
@@ -216,7 +227,7 @@ public class QdrantClient {
             point.put("payload", payload);
             points.add(point);
         }
-        // wait=true 保证写后立即可查，与 Chroma 行为一致
+        // wait=true 保证写后立即可查
         putJson(collectionPath(collectionName) + "/points?wait=true", Map.of("points", points));
     }
 

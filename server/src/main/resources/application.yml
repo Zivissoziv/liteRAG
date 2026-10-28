@@ -42,14 +42,8 @@ spring:
 literag:
   storage-dir: ./data/uploads
   vector:
-    # auto = 优先 Qdrant，其次 ChromaDB，均不可用时回退到内置本地向量库
+    # qdrant（默认，连接本地或远端 Qdrant）| local（进程内余弦检索）| auto（Qdrant 不可用时回退本地）
     provider: qdrant
-    chroma:
-      url: http://localhost:8000
-      api-version: auto   # auto | v1 | v2
-      tenant: default_tenant
-      database: default_database
-      timeout: 20
     qdrant:
       url: http://localhost:6333
       api-key: ''

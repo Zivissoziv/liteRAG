@@ -86,12 +86,8 @@
             <b class="mono">{{ engineUrl }}</b>
           </div>
           <div class="kv-row">
-            <span>API 版本</span>
-            <b>{{ activeEngine === 'chroma' ? (vec.chroma?.version || '-') : '-' }}</b>
-          </div>
-          <div class="kv-row">
-            <span>租户 / 库</span>
-            <b class="mono">{{ activeEngine === 'chroma' ? `${vec.chroma?.tenant || '-'} / ${vec.chroma?.database || '-'}` : '-' }}</b>
+            <span>版本</span>
+            <b>{{ activeEngine === 'qdrant' ? (vec.qdrant?.version ? 'v' + vec.qdrant.version : '-') : '-' }}</b>
           </div>
           <div class="kv-row">
             <span>模型配置</span>
@@ -158,20 +154,18 @@ let timer = null
 const vec = computed(() => over.value?.vector || {})
 const activeEngine = computed(() => vec.value.active || '')
 
-const engineLabel = (a) => ({ qdrant: 'Qdrant', chroma: 'ChromaDB', local: '本地' }[a] || (a ? '不可用' : '-'))
+const engineLabel = (a) => ({ qdrant: 'Qdrant', local: '本地' }[a] || (a ? '不可用' : '-'))
 
 const engineOk = computed(() => {
   const a = activeEngine.value
   if (a === 'local') return true
   if (a === 'qdrant') return !!vec.value.qdrant?.available
-  if (a === 'chroma') return !!vec.value.chroma?.available
   return false
 })
 
 const engineUrl = computed(() => {
   const a = activeEngine.value
   if (a === 'qdrant') return vec.value.qdrant?.url || '-'
-  if (a === 'chroma') return vec.value.chroma?.url || '-'
   return '进程内'
 })
 
