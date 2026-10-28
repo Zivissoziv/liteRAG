@@ -46,7 +46,7 @@ Vue 3 + Spring Boot 3 + Qdrant，`java -jar` 一个进程同时提供 UI、REST 
 
 | 层 | 选型 |
 | --- | --- |
-| 后端 | Spring Boot 3.2.5 / Java 17 / Spring Data JPA / H2（文件模式，免安装） |
+| 后端 | Spring Boot 3.2.5 / Java 17 / Spring Data JPA / SQLite（默认，单文件免安装）/ MySQL（可选） |
 | 解析 | Apache POI（docx、xlsx、pptx）、PDFBox（pdf） |
 | 向量库 | Qdrant 1.x（原生二进制或 Docker）、ChromaDB 1.0.x，均不可用时回退内置本地向量库 |
 | 前端 | Vue 3 + Vite 5 + Element Plus + Pinia + Vue Router（hash 路由） |
@@ -55,7 +55,7 @@ Vue 3 + Spring Boot 3 + Qdrant，`java -jar` 一个进程同时提供 UI、REST 
 
 ## 快速开始
 
-环境要求：JDK 17+、Maven 3.8+、Node.js 18+；向量库可选（Qdrant 单文件可执行程序，或 Docker 跑 ChromaDB）。
+环境要求：JDK 17+、Maven 3.8+、Node.js 18+；数据库无需安装（内置 SQLite 单文件库），向量库可选（Qdrant 单文件可执行程序，或 Docker 跑 ChromaDB）。
 
 **方式一：一键启动**
 
@@ -92,6 +92,31 @@ java -jar target/literag-server-1.0.0.jar --server.port=8080
 | `viewer` | `viewer123` | 只读 | 概览、知识库、检索问答、MCP 接入，无写操作 |
 
 ## 关键配置
+
+### 数据库
+
+默认使用 **SQLite** 单文件库，落在 `server/data/db/literag.db`，免安装、无额外进程，**停服务数据仍在**（WAL 模式下同目录还有 `-wal` / `-shm` 两个附属文件，属正常）。表结构由 Hibernate 首次启动自动创建。
+
+| 场景 | 做法 |
+| --- | --- |
+| 默认 SQLite | 无需配置。已开 WAL + `busy_timeout=10000` + `transaction_mode=IMMEDIATE`，实测 8 个文件并发上传无冲突 |
+| 改用 MySQL | `java -jar literag-server.jar --spring.profiles.active=mysql`，或用环境变量 `SPRING_DATASOURCE_USERNAME` / `SPRING_DATASOURCE_PASSWORD` / `SPRING_DATASOURCE_URL` 覆盖连接串 |
+| 换回 H2 | 覆盖 `spring.datasource.url`、`driver-class-name`、`spring.jpa.database-platform` 三项即可 |
+
+MySQL 需先建库，字符集必须是 utf8mb4（否则部分中文与 emoji 会截断）：
+
+```sql
+CREATE DATABASE literag DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+从旧版 H2 库迁移现有数据（覆盖式写入，可重复执行；先以 SQLite 配置启动一次服务，让 Hibernate 建好表）：
+
+```bash
+scripts/migrate-db.bat           # 预检：只打印两端表结构与行数，不写数据
+scripts/migrate-db.bat --force   # 实际迁移，完成后自动校准自增序列
+```
+
+![](docs/screenshots/11-database.png)
 
 ### Embedding 模型
 
@@ -185,11 +210,11 @@ liteRAG/
 ├─ web/             # Vue 3 前端（views：概览、知识库、检索问答、模型、MCP、用户、设置）
 ├─ scripts/         # 启停脚本、演示文档生成
 ├─ docs/screenshots/# README 截图
-├─ data/            # 运行期数据：H2 库、上传文件、日志（不入库）
+├─ data/            # 运行期数据：SQLite 库、上传文件、日志（不入库）
 └─ docker-compose.yml
 ```
 
-运行期数据落盘：元数据 `server/data/db/literag.mv.db`、原始文件 `server/data/uploads/{kbId}/...`、Qdrant 数据在其可执行文件同级 `storage/`、Chroma 在 `data/chroma/`；本地回退时向量存在 H2 的 `doc_chunk.embedding` 字段。
+运行期数据落盘：元数据 `server/data/db/literag.db`（SQLite 单文件）、原始文件 `server/data/uploads/{kbId}/...`、Qdrant 数据在其可执行文件同级 `storage/`、Chroma 在 `data/chroma/`；本地回退时向量存在 `doc_chunk.embedding` 字段。
 
 ## 常见问题
 
@@ -200,6 +225,8 @@ liteRAG/
 **向量库连不上？** `auto` 策略按 Qdrant → ChromaDB → 本地依次回退；显式指定引擎时连不上会直接报错。修好后在系统设置切回，并重建索引。
 
 **端口被占用？** `java -jar ... --server.port=9090`，同时改 `web/vite.config.js` 的代理目标。
+
+**数据存在哪？换数据库会丢吗？** 元数据在 `server/data/db/literag.db`，原始文件在 `server/data/uploads/`，备份只需整个 `server/data/` 目录。切库不会自动搬数据（Hibernate 只负责建表）：从旧版 H2 切到 SQLite 用 `scripts/migrate-db.bat`，已有 SQLite 数据要转 MySQL 则需自行导出导入。
 
 ## License
 
