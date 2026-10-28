@@ -102,6 +102,24 @@
 
       <div class="card">
         <div class="section-head">
+          <h2 class="section-title"><el-icon><Files /></el-icon>元数据库</h2>
+          <el-button size="small" text :loading="loading" @click="load">刷新</el-button>
+        </div>
+
+        <div class="status-row">
+          <span class="dot" :class="db?.available ? 'ok' : 'off'"></span>
+          <span class="status-text">{{ dbTitle }}</span>
+          <span class="mono url">{{ db?.file || db?.url }}</span>
+        </div>
+        <p class="hint">
+          默认使用 SQLite 单文件库（<code>server/data/db/literag.db</code>），停服务数据仍在、无需额外进程；
+          需要多人共享或更大并发时，可用 <code>--spring.profiles.active=mysql</code> 切到 MySQL。
+          表结构由 Hibernate 自动创建，切换库前请先迁移数据。
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
           <h2 class="section-title"><el-icon><Key /></el-icon>MCP 访问控制</h2>
         </div>
         <el-form label-width="120px" label-position="left" class="form">
@@ -117,7 +135,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { systemApi } from '../api'
 
@@ -125,6 +143,7 @@ const loading = ref(false)
 const saving = ref(false)
 const chroma = ref(null)
 const qdrant = ref(null)
+const db = ref(null)
 const form = reactive({
   vectorProvider: 'auto',
   chromaUrl: '',
@@ -144,10 +163,26 @@ const num = reactive({
   llmTemperature: 0.2
 })
 
+const formatSize = (n) => {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
+}
+
+const dbTitle = computed(() => {
+  if (!db.value) return '元数据库信息获取中'
+  if (!db.value.available) return `元数据库不可用：${db.value.error || '未知错误'}`
+  const name =
+    db.value.kind === 'SQLITE' ? 'SQLite' : db.value.kind === 'MYSQL' ? 'MySQL' : db.value.product || '数据库'
+  const size = db.value.size > 0 ? ` · ${formatSize(db.value.size)}` : ''
+  return `${name} 已连接${size}`
+})
+
 const load = async () => {
   loading.value = true
   try {
-    const res = await systemApi.settings()
+    // /system/status 是 /settings 的超集，一次请求即可拿到设置、向量与数据库信息
+    const res = await systemApi.status()
     const s = res.settings || {}
     form.vectorProvider = s.vectorProvider || 'auto'
     form.chromaUrl = s.chromaUrl || ''
@@ -165,6 +200,7 @@ const load = async () => {
     num.llmTemperature = Number(s.llmTemperature || 0.2)
     chroma.value = res.vector?.chroma || null
     qdrant.value = res.vector?.qdrant || null
+    db.value = res.database || null
   } finally {
     loading.value = false
   }
@@ -174,6 +210,7 @@ const refreshStatus = async () => {
   const res = await systemApi.status()
   chroma.value = res.vector?.chroma || null
   qdrant.value = res.vector?.qdrant || null
+  db.value = res.database || null
   const ok = [chroma.value?.available && 'ChromaDB', qdrant.value?.available && 'Qdrant'].filter(Boolean)
   ElMessage.success(ok.length ? `${ok.join('、')} 连接正常` : 'ChromaDB / Qdrant 均无法连接')
 }

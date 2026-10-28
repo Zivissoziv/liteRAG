@@ -6,12 +6,22 @@ server:
 spring:
   application:
     name: literag
+  # 默认数据库：SQLite（单文件，落盘 ./data/db/literag.db，停服务数据仍在）
+  # 切 MySQL：--spring.profiles.active=mysql（详见 application-mysql.yml）
   datasource:
-    url: jdbc:h2:file:./data/db/literag;AUTO_SERVER=TRUE;MODE=MySQL;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
+    # transaction_mode=IMMEDIATE 让写事务在 BEGIN 时就排队拿写锁，
+    # 否则并发写入会抛 SQLITE_BUSY_SNAPSHOT（busy_timeout 对快照冲突无效）
+    url: "jdbc:sqlite:./data/db/literag.db?journal_mode=WAL&busy_timeout=10000&synchronous=NORMAL&transaction_mode=IMMEDIATE"
+    driver-class-name: org.sqlite.JDBC
+    username: ''
     password: ''
+    hikari:
+      pool-name: literag-sqlite
+      # SQLite 是单写者模型，连接数不宜过大；WAL + busy_timeout 让读写尽量互不阻塞
+      maximum-pool-size: 8
+      minimum-idle: 1
   jpa:
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
     hibernate:
       ddl-auto: update
     open-in-view: false

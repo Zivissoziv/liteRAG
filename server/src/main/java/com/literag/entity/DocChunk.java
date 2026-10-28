@@ -2,6 +2,8 @@ package com.literag.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -31,13 +33,14 @@ public class DocChunk {
 
     private Integer seq;
 
-    @Lob
+    /** 片段正文。用 LONGVARCHAR 而不是 @Lob，避免 H2 / MySQL / SQLite 之间 Clob 句柄差异 */
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String content;
 
     private Integer charCount;
 
     /** 本地向量模式下保存原始向量（Chroma 模式下同样落库，便于切换后端后免重新解析） */
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARBINARY)
     private byte[] embedding;
 
     private Integer dim;

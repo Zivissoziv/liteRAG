@@ -2,6 +2,8 @@ package com.literag.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -51,7 +53,7 @@ public class ModelConfig {
     private Integer timeout = 60;
 
     /** 额外参数 JSON，例如 {"encoding_format":"float"} */
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String extraParams;
 
     private Boolean enabled = true;

@@ -1,0 +1,21 @@
+# 可选：使用 MySQL 作为元数据库
+# 启动方式：java -jar literag-server.jar --spring.profiles.active=mysql
+# 也可用环境变量覆盖：SPRING_DATASOURCE_URL / SPRING_DATASOURCE_USERNAME / SPRING_DATASOURCE_PASSWORD
+#
+# 建库（字符集必须是 utf8mb4，否则 emoji 与部分中文会丢）：
+#   CREATE DATABASE literag DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+# 表结构由 Hibernate 首次启动自动创建（ddl-auto: update）。
+spring:
+  datasource:
+    url: "jdbc:mysql://127.0.0.1:3306/literag?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true"
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: root
+    hikari:
+      pool-name: literag-mysql
+      maximum-pool-size: 20
+      minimum-idle: 2
+  jpa:
+    database-platform: org.hibernate.dialect.MySQLDialect
+    hibernate:
+      ddl-auto: update

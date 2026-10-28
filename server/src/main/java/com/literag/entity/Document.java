@@ -2,6 +2,8 @@ package com.literag.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -77,7 +79,7 @@ public class Document {
     private Integer chunkCount = 0;
 
     /** 解析后的纯文本；wiki 页面即 markdown 原文 */
-    @Lob
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
     private String content;
 
     @Column(length = 64)
