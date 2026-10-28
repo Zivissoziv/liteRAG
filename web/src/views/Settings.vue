@@ -38,7 +38,8 @@
             <el-input v-model="form.qdrantApiKey" placeholder="未启用认证则留空" show-password class="w-lg" />
           </el-form-item>
           <p class="hint form-hint">
-            「自动」在 Qdrant 可用时使用 Qdrant，连不上则回退进程内本地检索；切换策略后需对已有知识库重建索引。
+            向量始终随分块写入元数据库，「Qdrant」模式额外在 Qdrant 存一份副本。
+            由「本地」切到「Qdrant」后必须对已有知识库重建索引——老文档的向量只存在于库里，Qdrant 里没有对应的点，检索会静默搜不到；反向切回本地无需重建，只是变慢。
           </p>
         </el-form>
       </div>
@@ -119,8 +120,10 @@ const loading = ref(false)
 const saving = ref(false)
 const qdrant = ref(null)
 const db = ref(null)
+/** 已生效的策略，用于判断保存时是否发生了方向性切换 */
+const savedProvider = ref('qdrant')
 const form = reactive({
-  vectorProvider: 'auto',
+  vectorProvider: 'qdrant',
   qdrantUrl: '',
   qdrantApiKey: '',
   mcpApiKey: ''
@@ -155,10 +158,11 @@ const load = async () => {
     // /system/status 是 /settings 的超集，一次请求即可拿到设置、向量与数据库信息
     const res = await systemApi.status()
     const s = res.settings || {}
-    form.vectorProvider = s.vectorProvider || 'auto'
+    form.vectorProvider = s.vectorProvider || 'qdrant'
     form.qdrantUrl = s.qdrantUrl || 'http://localhost:6333'
     form.qdrantApiKey = s.qdrantApiKey || ''
     form.mcpApiKey = s.mcpApiKey || ''
+    savedProvider.value = form.vectorProvider
     num.chunkSize = Number(s.chunkSize || 800)
     num.chunkOverlap = Number(s.chunkOverlap || 120)
     num.defaultTopK = Number(s.defaultTopK || 6)
@@ -176,11 +180,20 @@ const refreshStatus = async () => {
   const res = await systemApi.status()
   qdrant.value = res.vector?.qdrant || null
   db.value = res.database || null
-  ElMessage[qdrant.value?.available ? 'success' : 'warning'](
-    qdrant.value?.available
-      ? `Qdrant 连接正常${qdrant.value.version ? '（v' + qdrant.value.version + '）' : ''}`
-      : 'Qdrant 无法连接，检索会回退到本地向量库'
-  )
+  if (qdrant.value?.available) {
+    ElMessage.success(
+      `Qdrant 连接正常${qdrant.value.version ? '（v' + qdrant.value.version + '）' : ''}`
+    )
+    return
+  }
+  // 连不上的后果取决于当前生效的策略，不能一律说「回退」
+  if (savedProvider.value === 'local') {
+    ElMessage.warning('Qdrant 无法连接，当前为「本地」策略，检索不受影响')
+  } else if (savedProvider.value === 'auto') {
+    ElMessage.warning('Qdrant 无法连接，「自动」策略下检索会回退到本地向量库')
+  } else {
+    ElMessage.error('Qdrant 无法连接，当前为「Qdrant」策略，检索会直接报错')
+  }
 }
 
 const genKey = () => {
@@ -207,7 +220,16 @@ const save = async () => {
     }
     const res = await systemApi.saveSettings(payload)
     qdrant.value = res.vector?.qdrant || null
-    ElMessage.success('设置已保存')
+    const prev = savedProvider.value
+    savedProvider.value = form.vectorProvider
+    // 只有「本地 → Qdrant」会缺索引点，其余方向切换不需要重建
+    if (prev !== 'qdrant' && form.vectorProvider === 'qdrant') {
+      ElMessage.warning('已切换到 Qdrant：此前入库的文档在 Qdrant 中没有索引，请对知识库重建索引')
+    } else if (prev === 'qdrant' && form.vectorProvider !== 'qdrant') {
+      ElMessage.success('已切换，向量已随分块落库，无需重建索引')
+    } else {
+      ElMessage.success('设置已保存')
+    }
   } finally {
     saving.value = false
   }

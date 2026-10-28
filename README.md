@@ -48,7 +48,7 @@ Vue 3 + Spring Boot 3 + Qdrant，`java -jar` 一个进程同时提供 UI、REST 
 | --- | --- |
 | 后端 | Spring Boot 3.2.5 / Java 17 / Spring Data JPA / SQLite（默认，单文件免安装）/ MySQL（可选） |
 | 解析 | Apache POI（docx、xlsx、pptx）、PDFBox（pdf） |
-| 向量库 | Qdrant 1.20.0（`tools/qdrant/` 下的 Windows / Linux x64 二进制，或 Docker），未启动时回退内置本地向量库 |
+| 向量库 | Qdrant 1.20.0（`tools/qdrant/` 下的 Windows / Linux x64 二进制，或 Docker）；未启动时默认策略会直接报错，可在设置里切换为进程内本地检索 |
 | 前端 | Vue 3 + Vite 5 + Element Plus + Pinia + Vue Router（hash 路由） |
 | 预览 | 浏览器原生 PDF、docx-preview、SheetJS、POI 自绘 HTML |
 | 协议 | MCP 2025-06-18（Streamable HTTP）/ 2024-11-05（HTTP+SSE） |
@@ -156,7 +156,7 @@ bash scripts/qdrant.sh restart
 
 也可以直接用 Docker：`docker compose up -d qdrant`（数据落 `data/qdrant`，与本地二进制互不影响）。
 
-- `literag.vector.provider` 支持 `qdrant`（默认）/ `local` / `auto`（Qdrant 不可用则回退本地），也可在「系统设置」里切换，**切换后需对已有知识库重建索引**，向量不会自动迁移。
+- `literag.vector.provider` 支持 `qdrant`（默认，连不上直接报错）/ `local`（进程内余弦扫描）/ `auto`（探测 Qdrant，不可用则回退本地），也可在「系统设置」里切换。向量在任何模式下都随分块写进元数据库，Qdrant 模式只是额外存一份副本，因此 **`local` → `qdrant` 必须对已有知识库重建索引**（老文档在 Qdrant 里没有点，会静默搜不到），**`qdrant` → `local` 无需重建**，只是检索变慢。
 - REST 端口 `6333`，`http://localhost:6333/dashboard` 有自带管理界面。liteRAG 用内置 REST 客户端访问，无需 SDK；系统设置与概览页会显示 `v1.20.0` 这类实际版本号。
 - collection 在首次写入时按实际向量维度创建，相似度统一使用 Cosine，score 语义（0~1，越大越相关）与本地引擎一致。
 - 旧版本配置过 ChromaDB 的，启动时 `vectorProvider=chroma` 会自动按 `qdrant` 处理，`chroma*` 遗留设置项被忽略。
@@ -238,7 +238,7 @@ liteRAG/
 └─ docker-compose.yml
 ```
 
-运行期数据落盘：元数据 `server/data/db/literag.db`（SQLite 单文件）、原始文件 `server/data/uploads/{kbId}/...`、Qdrant 数据在 `tools/qdrant/storage/`（Docker 版在 `data/qdrant/`）；本地回退时向量存在 `doc_chunk.embedding` 字段。
+运行期数据落盘：元数据 `server/data/db/literag.db`（SQLite 单文件）、原始文件 `server/data/uploads/{kbId}/...`、Qdrant 数据在 `tools/qdrant/storage/`（Docker 版在 `data/qdrant/`）；向量始终存在 `doc_chunk.embedding` 字段，Qdrant 模式为额外副本。
 
 ## 常见问题
 
@@ -246,7 +246,7 @@ liteRAG/
 
 **上传后一直处理中？** 看 `data/server.log`，常见原因是文件加密或扫描件 PDF 没有文本层（本系统不含 OCR）。
 
-**向量库连不上？** `auto` 策略先试 Qdrant，连不上回退本地；显式指定 `qdrant` 时连不上会直接报错。先 `bash scripts/qdrant.sh start`（Windows 可直接跑 `tools\qdrant\qdrant.exe`），修好后在系统设置切回，并重建索引。
+**向量库连不上？** `qdrant` 策略下检索会直接报错（默认），`auto` 会静默回退本地、`local` 不受影响。先 `bash scripts/qdrant.sh start`（Windows 可直接跑 `tools\qdrant\qdrant.exe`），修好后在系统设置切回。注意掉线期间若走过本地回退入库，那批文档在 Qdrant 里没有索引点，需要重建索引才能被检索到。
 
 **端口被占用？** `java -jar ... --server.port=9090`，同时改 `web/vite.config.js` 的代理目标。
 
