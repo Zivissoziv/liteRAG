@@ -16,7 +16,7 @@ Vue 3 + Spring Boot 3 + Qdrant，`java -jar` 一个进程同时提供 UI、REST 
 | 原样预览 | 抽屉内看原始版面：PDF 浏览器原生渲染，docx 还原段落与表格，xlsx 带行列标与工作表切换，pptx 按幻灯片坐标渲染 |
 | 检索问答 | 向量召回 + 大模型总结，答案带 `[1][2]` 引用；未配置对话模型时降级为返回原文片段 |
 | Embedding | OpenAI 兼容接口（硅基流动 / 通义 / OpenAI / 智谱）、Ollama 本地模型、内置离线哈希模型，可随时切换与测活 |
-| 向量存储 | Qdrant（推荐，原生二进制零依赖）、ChromaDB（v1/v2 自适应）、进程内余弦检索，设置页一键切换 |
+| 向量存储 | Qdrant（唯一外部引擎，`tools/qdrant/` 已放好 Windows / Linux x64 可执行文件）+ 进程内余弦检索兜底，设置页可切换 |
 | 权限 | 账号密码登录，三档角色 + 知识库级可见范围，文档、目录、检索结果、统计全链路过滤 |
 | MCP | 原生 JSON-RPC 2.0，同时支持 Streamable HTTP 与 HTTP+SSE，暴露 5 个工具 + 4 类资源 |
 
@@ -48,14 +48,14 @@ Vue 3 + Spring Boot 3 + Qdrant，`java -jar` 一个进程同时提供 UI、REST 
 | --- | --- |
 | 后端 | Spring Boot 3.2.5 / Java 17 / Spring Data JPA / SQLite（默认，单文件免安装）/ MySQL（可选） |
 | 解析 | Apache POI（docx、xlsx、pptx）、PDFBox（pdf） |
-| 向量库 | Qdrant 1.x（原生二进制或 Docker）、ChromaDB 1.0.x，均不可用时回退内置本地向量库 |
+| 向量库 | Qdrant 1.20.0（`tools/qdrant/` 下的 Windows / Linux x64 二进制，或 Docker），未启动时回退内置本地向量库 |
 | 前端 | Vue 3 + Vite 5 + Element Plus + Pinia + Vue Router（hash 路由） |
 | 预览 | 浏览器原生 PDF、docx-preview、SheetJS、POI 自绘 HTML |
 | 协议 | MCP 2025-06-18（Streamable HTTP）/ 2024-11-05（HTTP+SSE） |
 
 ## 快速开始
 
-环境要求：JDK 17+、Maven 3.8+、Node.js 18+；数据库无需安装（内置 SQLite 单文件库），向量库可选（Qdrant 单文件可执行程序，或 Docker 跑 ChromaDB）。
+环境要求：JDK 17+、Maven 3.8+、Node.js 18+；数据库无需安装（内置 SQLite 单文件库），向量库用 Qdrant 单文件可执行程序，已放在 `tools/qdrant/` 下（Linux / macOS 缺失时会自动下载）。
 
 **方式一：一键启动**
 
@@ -64,12 +64,13 @@ scripts\start.bat        # Windows
 bash scripts/start.sh    # macOS / Linux
 ```
 
-脚本会准备向量库（Docker 可用时拉起 ChromaDB）→ 构建前端 → 打包后端 → 启动服务，然后访问 <http://127.0.0.1:8080>。
+脚本会先拉起 Qdrant（`tools/qdrant/` 下按平台选可执行文件，已在运行则跳过）→ 构建前端 → 打包后端 → 启动服务，然后访问 <http://127.0.0.1:8080>。
 
 **方式二：开发模式**
 
 ```bash
-docker compose up -d chroma        # 或自行运行 qdrant 可执行文件（REST 端口 6333）
+bash scripts/qdrant.sh start        # 启动本地 Qdrant（端口 6333）
+docker compose up -d qdrant         # 或改用 Docker 版
 cd server && mvn spring-boot:run   # 后端 8080
 cd web && npm install && npm run dev   # 前端 5173，/api 与 /mcp 已代理到 8080
 ```
@@ -134,9 +135,31 @@ scripts/migrate-db.bat --force   # 实际迁移，完成后自动校准自增序
 
 ### 向量库
 
-- `literag.vector.provider` 支持 `qdrant`（默认）/ `chroma` / `local` / `auto`，也可在「系统设置」里切换，**切换后需对已有知识库重建索引**，向量不会自动迁移。
-- Qdrant 是单个可执行文件（Windows zip 约 27 MB，解压即 `qdrant.exe`），REST 端口 `6333`，`http://localhost:6333/dashboard` 有自带管理界面。liteRAG 用内置 REST 客户端访问，无需 SDK。
-- collection 在首次写入时按实际向量维度创建，相似度统一使用 Cosine，score 语义（0~1，越大越相关）与 Chroma、本地引擎一致。
+向量引擎只保留 **Qdrant**（外部服务）与 **本地**（进程内余弦扫描，零依赖兜底）两种。
+
+| 平台 | 可执行文件 | 说明 |
+| --- | --- | --- |
+| Windows x64 | `tools/qdrant/qdrant.exe` | 项目目录已放好，约 87 MB |
+| Linux x64 | `tools/qdrant/linux-x64/qdrant` | 项目目录已放好（Qdrant 1.20.0），缺失时脚本自动下载 |
+| macOS arm64 | `tools/qdrant/darwin-arm64/qdrant` | 缺失时由脚本自动下载 |
+
+> 两个二进制各约 90 MB，`tools/` 已在 `.gitignore` 中不入库；换机器克隆后 Windows 需手动补 `qdrant.exe`，Linux / macOS 由 `start` 或 `qdrant.sh` 首次运行时自动下载。
+
+`scripts/qdrant.sh` 统一管理（数据目录固定为 `tools/qdrant/storage`）：
+
+```bash
+bash scripts/qdrant.sh start     # 未运行则后台启动，最多等 30s 健康检查
+bash scripts/qdrant.sh status    # 打印地址与版本
+bash scripts/qdrant.sh stop      # 先按 pidfile，再按端口兜底结束进程
+bash scripts/qdrant.sh restart
+```
+
+也可以直接用 Docker：`docker compose up -d qdrant`（数据落 `data/qdrant`，与本地二进制互不影响）。
+
+- `literag.vector.provider` 支持 `qdrant`（默认）/ `local` / `auto`（Qdrant 不可用则回退本地），也可在「系统设置」里切换，**切换后需对已有知识库重建索引**，向量不会自动迁移。
+- REST 端口 `6333`，`http://localhost:6333/dashboard` 有自带管理界面。liteRAG 用内置 REST 客户端访问，无需 SDK；系统设置与概览页会显示 `v1.20.0` 这类实际版本号。
+- collection 在首次写入时按实际向量维度创建，相似度统一使用 Cosine，score 语义（0~1，越大越相关）与本地引擎一致。
+- 旧版本配置过 ChromaDB 的，启动时 `vectorProvider=chroma` 会自动按 `qdrant` 处理，`chroma*` 遗留设置项被忽略。
 
 ### 分块
 
@@ -208,13 +231,14 @@ scripts/migrate-db.bat --force   # 实际迁移，完成后自动校准自增序
 liteRAG/
 ├─ server/          # Spring Boot 后端（controller / service / parser / vector / ai / mcp）
 ├─ web/             # Vue 3 前端（views：概览、知识库、检索问答、模型、MCP、用户、设置）
-├─ scripts/         # 启停脚本、演示文档生成
+├─ scripts/         # 启停脚本（start / qdrant / 数据库迁移）、演示文档生成
+├─ tools/qdrant/    # Qdrant 可执行文件（Windows / Linux x64）与向量数据 storage/（不入库）
 ├─ docs/screenshots/# README 截图
 ├─ data/            # 运行期数据：SQLite 库、上传文件、日志（不入库）
 └─ docker-compose.yml
 ```
 
-运行期数据落盘：元数据 `server/data/db/literag.db`（SQLite 单文件）、原始文件 `server/data/uploads/{kbId}/...`、Qdrant 数据在其可执行文件同级 `storage/`、Chroma 在 `data/chroma/`；本地回退时向量存在 `doc_chunk.embedding` 字段。
+运行期数据落盘：元数据 `server/data/db/literag.db`（SQLite 单文件）、原始文件 `server/data/uploads/{kbId}/...`、Qdrant 数据在 `tools/qdrant/storage/`（Docker 版在 `data/qdrant/`）；本地回退时向量存在 `doc_chunk.embedding` 字段。
 
 ## 常见问题
 
@@ -222,7 +246,7 @@ liteRAG/
 
 **上传后一直处理中？** 看 `data/server.log`，常见原因是文件加密或扫描件 PDF 没有文本层（本系统不含 OCR）。
 
-**向量库连不上？** `auto` 策略按 Qdrant → ChromaDB → 本地依次回退；显式指定引擎时连不上会直接报错。修好后在系统设置切回，并重建索引。
+**向量库连不上？** `auto` 策略先试 Qdrant，连不上回退本地；显式指定 `qdrant` 时连不上会直接报错。先 `bash scripts/qdrant.sh start`（Windows 可直接跑 `tools\qdrant\qdrant.exe`），修好后在系统设置切回，并重建索引。
 
 **端口被占用？** `java -jar ... --server.port=9090`，同时改 `web/vite.config.js` 的代理目标。
 

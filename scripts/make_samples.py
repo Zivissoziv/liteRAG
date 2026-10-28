@@ -59,7 +59,7 @@ ws.title = "成本明细"
 ws.append(["项目", "单价(元)", "数量", "小计(元)", "负责人"])
 rows = [
     ("云服务器 4C8G", 480, 2, 960, "张工"),
-    ("ChromaDB 存储", 120, 3, 360, "李工"),
+    ("Qdrant 向量库节点", 120, 3, 360, "李工"),
     ("向量化调用", 0.0007, 1200000, 840, "王工"),
     ("对象存储", 60, 2, 120, "张工"),
     ("域名与证书", 90, 1, 90, "赵工"),
@@ -88,11 +88,11 @@ lines = [
     ("", 12),
     ("1. Prerequisites", 14),
     ("Java 17 or later, Node.js 18 or later, Docker (optional).", 11),
-    ("ChromaDB can run in a container on port 8000.", 11),
+    ("Qdrant runs as a single binary on port 6333 (or via docker compose).", 11),
     ("", 12),
     ("2. Start the backend", 14),
     ("Run: java -jar literag-server.jar --server.port=8080", 11),
-    ("The metadata database is an embedded H2 file at ./data/db.", 11),
+    ("The metadata database is an embedded SQLite file at ./data/db.", 11),
     ("", 12),
     ("3. Start the frontend", 14),
     ("Run: npm install && npm run dev inside the web directory.", 11),

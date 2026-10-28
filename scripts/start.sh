@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# LiteRAG 一键启动：探测向量库 -> 前端构建 -> 后端打包 -> 启动服务
+# LiteRAG 一键启动：向量库 -> 前端构建 -> 后端打包 -> 启动服务
 # 元数据库为内置 SQLite 单文件（server/data/db/literag.db），无需启动
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 PORT="${PORT:-8080}"
 
-echo "[1/4] 探测向量库 ..."
-if curl -s -m 2 http://localhost:6333/collections >/dev/null 2>&1; then
-  echo "      Qdrant 已就绪（localhost:6333）"
-elif curl -s -m 2 http://localhost:8000/api/v2/heartbeat >/dev/null 2>&1; then
-  echo "      ChromaDB 已就绪（localhost:8000）"
+echo "[1/4] 启动向量库 ..."
+if [ "${VECTOR_PROVIDER:-qdrant}" = "local" ]; then
+  echo "      已指定本地向量库，跳过 Qdrant"
 else
-  echo "      未检测到 Qdrant / ChromaDB，将回退到内置本地向量库"
-  echo "      需要 Qdrant 可执行：tools/qdrant/qdrant.exe（Windows）或 docker run -p 6333:6333 qdrant/qdrant"
+  bash "$ROOT/scripts/qdrant.sh" start
 fi
 
 echo "[2/4] 构建前端 ..."

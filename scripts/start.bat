@@ -5,20 +5,36 @@ set ROOT=%~dp0..
 cd /d "%ROOT%"
 if "%PORT%"=="" set PORT=8080
 
-echo [1/4] Checking vector store ...
+echo [1/4] Starting vector store ...
 rem Metadata DB is built-in SQLite (server\data\db\literag.db), nothing to start.
-curl -s -m 2 http://localhost:6333/collections >nul 2>&1
+if /i "%VECTOR_PROVIDER%"=="local" (
+  echo       Local vector store selected, skip Qdrant
+  goto build
+)
+curl -s -m 2 http://localhost:6333/healthz >nul 2>&1
 if not errorlevel 1 (
   echo       Qdrant is up on localhost:6333
   goto build
 )
-curl -s -m 2 http://localhost:8000/api/v2/heartbeat >nul 2>&1
-if not errorlevel 1 (
-  echo       ChromaDB is up on localhost:8000
+if not exist "tools\qdrant\qdrant.exe" (
+  echo       tools\qdrant\qdrant.exe not found, fallback to built-in local vector store
   goto build
 )
-echo       No Qdrant / ChromaDB detected, fallback to built-in local vector store
-echo       For Qdrant: run tools\qdrant\qdrant.exe or docker run -p 6333:6333 qdrant/qdrant
+echo       Starting Qdrant ...
+pushd tools\qdrant
+start "literag-qdrant" /b qdrant.exe > qdrant.log 2>&1
+popd
+set /a QTRY=0
+:waitq
+timeout /t 1 /nobreak >nul
+curl -s -m 2 http://localhost:6333/healthz >nul 2>&1
+if not errorlevel 1 (
+  echo       Qdrant started on localhost:6333
+  goto build
+)
+set /a QTRY+=1
+if %QTRY% lss 30 goto waitq
+echo       Qdrant start timed out, see tools\qdrant\qdrant.log
 
 :build
 echo [2/4] Building frontend ...
